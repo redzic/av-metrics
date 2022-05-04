@@ -2,41 +2,66 @@ extern crate ffmpeg_next as ffmpeg;
 
 use std::path::Path;
 
-use ffmpeg::codec::{decoder, packet};
-use ffmpeg::format::context;
+use ffmpeg::codec::decoder;
+use ffmpeg::format::context::input::PacketIter;
 use ffmpeg::media::Type;
-use ffmpeg::util::frame::video::Video;
-use ffmpeg::{format, frame};
+use ffmpeg::threading::Config;
+use ffmpeg::{format, frame, threading};
 
 use av_metrics::video::decode::*;
 use av_metrics::video::*;
 
 /// An interface that is used for decoding a video stream using FFMpeg
-pub struct FfmpegDecoder {
-    input_ctx: context::Input,
+pub struct FfmpegDecoder<'a> {
+    packet_iter: PacketIter<'a>,
     decoder: decoder::Video,
     video_details: VideoDetails,
-    frameno: usize,
     stream_index: usize,
-    end_of_stream: bool,
+    receiving_eof_frames: bool,
+    receiving_frames: bool,
 }
 
-impl FfmpegDecoder {
-    /// Initialize a new FFMpeg decoder for a given input file
-    pub fn new<P: AsRef<Path>>(input: P) -> Result<Self, String> {
+impl<'a> FfmpegDecoder<'a> {
+    /// Gets context
+    ///
+    /// This step is needed separately to avoid lifetime issues
+    /// regarding a field in a struct containing a reference to
+    /// another field in the same struct.
+    pub fn get_ctx(input: &Path) -> format::context::Input {
+        // TODO Fix error handling.
+        format::input(&input).unwrap()
+    }
+
+    // TODO Don't use strings for error handling.
+    /// Initialize a new FFmpeg decoder for a given input file
+    pub fn new(input_ctx: &'a mut format::context::Input) -> Result<Self, String> {
         ffmpeg::init().map_err(|e| e.to_string())?;
 
-        let input_ctx = format::input(&input).map_err(|e| e.to_string())?;
         let input = input_ctx
             .streams()
             .best(Type::Video)
             .ok_or_else(|| "Could not find video stream".to_string())?;
         let stream_index = input.index();
-        let mut decoder = ffmpeg::codec::context::Context::from_parameters(input.parameters())
-            .map_err(|e| e.to_string())?
+        let mut decoder_context =
+            ffmpeg::codec::context::Context::from_parameters(input.parameters())
+                .map_err(|e| e.to_string())?;
+
+        // This needs to be done on the decoder context BEFORE
+        // creating the decoder itself, otherwise the decoder
+        // will still be single-threaded.
+        decoder_context.set_threading(Config {
+            // 0 = decoder automatically decides number of threads to use
+            count: 0,
+            // TODO set threading kind based on supported features of codec
+            kind: threading::Type::Frame,
+            safe: false,
+        });
+
+        let mut decoder = decoder_context
             .decoder()
             .video()
             .map_err(|e| e.to_string())?;
+
         decoder
             .set_parameters(input.parameters())
             .map_err(|e| e.to_string())?;
@@ -87,104 +112,73 @@ impl FfmpegDecoder {
                 luma_padding: 0,
             },
             decoder,
-            input_ctx,
-            frameno: 0,
+            packet_iter: input_ctx.packets(),
             stream_index,
-            end_of_stream: false,
+            receiving_eof_frames: false,
+            receiving_frames: false,
         })
+    }
+
+    /// Get decoder pixel format
+    pub fn get_decoder_format(&self) -> format::Pixel {
+        self.decoder.format()
+    }
+
+    /// Same as [`read_video_frame`] but does not create an additional allocation
+    pub fn receive_frame_with_alloc<T: Pixel>(&mut self, alloc: &mut frame::Video) -> bool {
+        // Get packet until we find one that is the index we need
+
+        // Only return false after packet_iter stops returning and after we've returned
+        // all frames after eof
+
+        // Only return false when packet_iter stops returning, otherwise keep decoding
+        // We have this loop ONLY IF receive_frame doesn't return true, we have to keep
+        // on asking until it does
+        loop {
+            // Are we receiving a frame
+            // We keep receiving frames while the decoder is returning true for receive_frame
+            if self.receiving_frames {
+                let res = self.decoder.receive_frame(alloc).is_ok();
+                if res {
+                    // Keep receiving frames
+                    return true;
+                } else {
+                    // We need to send more packets once the decoder stops returning
+                    self.receiving_frames = false;
+                }
+            } else if self.receiving_eof_frames {
+                return self.decoder.receive_frame(alloc).is_ok();
+            }
+
+            if let Some((stream, packet)) = self.packet_iter.next() {
+                // Skip indexes we don't care about
+                if stream.index() != self.stream_index {
+                    continue;
+                }
+
+                self.decoder.send_packet(&packet).unwrap();
+                self.receiving_frames = true;
+                continue;
+            } else {
+                self.decoder.send_eof().unwrap();
+                self.receiving_eof_frames = true;
+                continue;
+            }
+        }
     }
 }
 
-impl Decoder for FfmpegDecoder {
+impl<'a> Decoder for FfmpegDecoder<'a> {
     fn get_video_details(&self) -> VideoDetails {
         self.video_details
     }
 
+    // This has been removed temporarily because the changes
+    // to FfmpegDecoder which are needed for receive_frame_with_alloc
+    // make this function not compile because the struct no longer
+    // has the necessary fields
     fn read_video_frame<T: Pixel>(&mut self) -> Option<Frame<T>> {
-        // For some reason there's a crap ton of work needed to get ffmpeg to do something simple,
-        // because each codec has it's own stupid way of doing things and they don't all
-        // decode the same way.
-        //
-        // Maybe ffmpeg could have made a simple, singular interface that does this for us,
-        // but noooooo.
-        //
-        // Reference: https://ffmpeg.org/doxygen/trunk/api-h264-test_8c_source.html#l00110
-        if self.end_of_stream {
-            return None;
-        }
-
-        loop {
-            // This iterator is actually really stupid... it doesn't reset itself after each `new`.
-            // But that solves our lifetime hell issues, ironically.
-            let packet = self.input_ctx.packets().next().map(|(_, packet)| packet);
-
-            let mut packet = if let Some(packet) = packet {
-                packet
-            } else {
-                self.end_of_stream = true;
-                packet::Packet::empty()
-            };
-
-            if self.end_of_stream || packet.stream() == self.stream_index {
-                let mut decoded = frame::Video::new(
-                    self.decoder.format(),
-                    self.video_details.width as u32,
-                    self.video_details.height as u32,
-                );
-                if packet.pts().is_none() {
-                    packet.set_pts(Some(self.frameno as i64));
-                    packet.set_dts(Some(self.frameno as i64));
-                }
-
-                // If there is an error sending a packet, skip to the next packet
-                if self.decoder.send_packet(&packet).is_err() {
-                    continue;
-                }
-
-                if self.decoder.receive_frame(&mut decoded).is_ok() {
-                    let mut f: Frame<T> = Frame::new_with_padding(
-                        self.video_details.width,
-                        self.video_details.height,
-                        self.video_details.chroma_sampling,
-                        0,
-                    );
-                    let width = self.video_details.width;
-                    let height = self.video_details.height;
-                    let bit_depth = self.video_details.bit_depth;
-                    let bytes = if bit_depth > 8 { 2 } else { 1 };
-                    let (chroma_width, _) = self
-                        .video_details
-                        .chroma_sampling
-                        .get_chroma_dimensions(width, height);
-                    f.planes[0].copy_from_raw_u8(decoded.data(0), width * bytes, bytes);
-                    convert_chroma_data(
-                        &mut f.planes[1],
-                        self.video_details.chroma_sample_position,
-                        bit_depth,
-                        decoded.data(1),
-                        chroma_width * bytes,
-                        bytes,
-                    );
-                    convert_chroma_data(
-                        &mut f.planes[2],
-                        self.video_details.chroma_sample_position,
-                        bit_depth,
-                        decoded.data(2),
-                        chroma_width * bytes,
-                        bytes,
-                    );
-
-                    self.frameno += 1;
-                    return Some(f);
-                }
-            }
-            // Close decoder
-            if self.end_of_stream {
-                let _ = self.decoder.send_eof();
-                let _ = self.decoder.receive_frame(&mut Video::empty());
-                return None;
-            }
-        }
+        None
     }
 
     fn get_bit_depth(&self) -> usize {
