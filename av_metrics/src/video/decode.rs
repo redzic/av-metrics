@@ -4,9 +4,18 @@
 use crate::video::pixel::Pixel;
 use crate::video::{ChromaSamplePosition, ChromaSampling};
 use std::cmp;
+use std::ops::Add;
 use v_frame::frame::Frame;
 use v_frame::pixel::CastFromPrimitive;
 use v_frame::plane::Plane;
+
+pub trait FrameRef<T: Pixel> {
+    fn get_ptr() -> *const T;
+}
+
+pub trait Decoder2<T: Add> {
+    fn get() -> T;
+}
 
 /// A trait for allowing metrics to decode generic video formats.
 ///

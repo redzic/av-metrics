@@ -6,7 +6,7 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::wrong_self_convention)]
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 #[macro_use]
 extern crate itertools;
