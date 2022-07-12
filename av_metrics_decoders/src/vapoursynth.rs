@@ -1,5 +1,5 @@
 use av_metrics::video::decode::VideoDetails;
-use vapoursynth::node::{GetFrameError, Node};
+use vapoursynth::node::Node;
 
 use vapoursynth::prelude::*;
 
@@ -11,6 +11,7 @@ pub struct VapoursynthDecoder<'a> {
 }
 
 /// Vapoursynth error
+#[derive(Debug)]
 pub enum VapoursynthError {
     /// VsScript error
     VsScript(vsscript::Error),
@@ -66,12 +67,25 @@ impl<'a> VapoursynthDecoder<'a> {
         self.video_details.bit_depth
     }
 
-    pub fn receive_frame<'b>(&'b mut self) -> Result<FrameRef<'a>, GetFrameError> {
+    pub fn receive_frame_initial<'b>(&'b mut self) -> Option<FrameRef<'a>> {
         let frame = self.node.get_frame(self.frame_idx);
 
         self.frame_idx += 1;
 
-        frame
+        frame.ok()
+    }
+
+    pub fn receive_frame<'b>(&'b mut self, x: &'b mut FrameRef<'a>) -> bool {
+        let frame = self.node.get_frame(self.frame_idx);
+
+        self.frame_idx += 1;
+
+        if let Ok(frame) = frame {
+            *x = frame;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     pub fn get_video_details(&self) -> VideoDetails {
