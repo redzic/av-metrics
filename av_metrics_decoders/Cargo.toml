@@ -21,7 +21,14 @@ y4m = { version = "0.7", optional = true }
 [dependencies.vapoursynth]
 git = "https://github.com/YaLTeR/vapoursynth-rs"
 rev = "074417335ff9c139956c62771835798c9a302e67"
-features = ["vsscript-functions", "vapoursynth-functions"]
+# features = ["vsscript-functions", "vapoursynth-functions"]
+features = [
+    "vsscript-functions",
+    "vapoursynth-functions",
+    "vapoursynth-api-32",
+    "vsscript-api-31",
+]
+
 
 [features]
 ffmpeg = ["ffmpeg-next"]

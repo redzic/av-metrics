@@ -4,7 +4,7 @@
 //!
 //! Currently supported decoder features: y4m
 
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 #[cfg(feature = "y4m")]
 mod y4m;
