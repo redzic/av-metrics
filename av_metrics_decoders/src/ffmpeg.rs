@@ -11,7 +11,7 @@ use ffmpeg::{format, frame, threading};
 use av_metrics::video::decode::*;
 use av_metrics::video::*;
 
-/// An interface that is used for decoding a video stream using FFMpeg
+/// An interface that is used for decoding a video stream using FFmpeg
 pub struct FfmpegDecoder<'a> {
     packet_iter: PacketIter<'a>,
     decoder: decoder::Video,
@@ -27,9 +27,9 @@ impl<'a> FfmpegDecoder<'a> {
     /// This step is needed separately to avoid lifetime issues
     /// regarding a field in a struct containing a reference to
     /// another field in the same struct.
-    pub fn get_ctx(input: &Path) -> format::context::Input {
+    pub fn get_ctx(input: &Path) -> Result<format::context::Input, ffmpeg::Error> {
         // TODO Fix error handling.
-        format::input(&input).unwrap()
+        format::input(&input)
     }
 
     // TODO Don't use strings for error handling.

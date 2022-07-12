@@ -27,20 +27,6 @@ pub trait Decoder: Send {
     ///
     /// Expected to return `Err` if the end of the video is reached.
     fn read_video_frame<T: Pixel>(&mut self) -> Option<Frame<T>>;
-    /// Read a specific frame from the input video
-    ///
-    /// Expected to return `Err` if the frame is not found.
-    fn read_specific_frame<T: Pixel>(&mut self, frame_number: usize) -> Option<Frame<T>> {
-        let mut frame_no = 0;
-        while frame_no <= frame_number {
-            let frame = self.read_video_frame();
-            if frame_no == frame_number && frame.is_some() {
-                return frame;
-            }
-            frame_no += 1;
-        }
-        None
-    }
     /// Get the bit depth of the video.
     fn get_bit_depth(&self) -> usize;
     /// Get the Video Details
