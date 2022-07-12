@@ -10,20 +10,40 @@ pub struct VapoursynthDecoder<'a> {
     video_details: VideoDetails,
 }
 
+/// Vapoursynth error
+pub enum VapoursynthError {
+    /// VsScript error
+    VsScript(vsscript::Error),
+    /// Script has variable format in output
+    VariableFormat,
+    /// Script has variable resolution in output
+    VariableResolution,
+}
+
+impl From<vsscript::Error> for VapoursynthError {
+    fn from(e: vsscript::Error) -> Self {
+        Self::VsScript(e)
+    }
+}
+
 impl<'a> VapoursynthDecoder<'a> {
-    // TODO return error instead
-    pub fn new(env: &'a Environment) -> Self {
-        let (node, _) = env.get_output(0).unwrap();
+    pub fn new(env: &'a Environment) -> Result<Self, VapoursynthError> {
+        const OUTPUT_INDEX: i32 = 0;
+
+        #[cfg(feature = "vapoursynth_new_api")]
+        let (node, _) = env.get_output(OUTPUT_INDEX)?;
+        #[cfg(not(feature = "vapoursynth_new_api"))]
+        let node = env.get_output(OUTPUT_INDEX)?;
 
         let bit_depth = match node.info().format {
             Property::Variable => {
-                panic!("Cannot output clips with variable format");
+                return Err(VapoursynthError::VariableFormat);
             }
             Property::Constant(x) => x.bits_per_sample(),
         };
 
         let resolution = match node.info().resolution {
-            Property::Variable => panic!(),
+            Property::Variable => return Err(VapoursynthError::VariableResolution),
             Property::Constant(x) => x,
         };
 
@@ -35,20 +55,18 @@ impl<'a> VapoursynthDecoder<'a> {
             ..Default::default()
         };
 
-        Self {
+        Ok(Self {
             frame_idx: 0,
             node,
             video_details,
-        }
+        })
     }
 
     pub fn get_bit_depth(&self) -> usize {
-        // self.bit_depth
         self.video_details.bit_depth
     }
 
     pub fn receive_frame<'b>(&'b mut self) -> Result<FrameRef<'a>, GetFrameError> {
-        // pub fn receive_frame(&mut self, x: &mut FrameRef) -> bool {
         let frame = self.node.get_frame(self.frame_idx);
 
         self.frame_idx += 1;
