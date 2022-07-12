@@ -13,10 +13,6 @@ pub trait FrameRef<T: Pixel> {
     fn get_ptr() -> *const T;
 }
 
-pub trait Decoder2<T: Add> {
-    fn get() -> T;
-}
-
 /// A trait for allowing metrics to decode generic video formats.
 ///
 /// Currently, y4m decoding support using the `y4m` crate is built-in
