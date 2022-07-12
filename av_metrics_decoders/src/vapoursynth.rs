@@ -7,7 +7,6 @@ use vapoursynth::prelude::*;
 pub struct VapoursynthDecoder<'a> {
     frame_idx: usize,
     node: Node<'a>,
-    // bit_depth: usize,
     video_details: VideoDetails,
 }
 
@@ -16,9 +15,6 @@ impl<'a> VapoursynthDecoder<'a> {
     pub fn new(env: &'a Environment) -> Self {
         let (node, _) = env.get_output(0).unwrap();
 
-        // let frame0 = node.get_frame(0).unwrap();
-
-        // env.get_output(0).unwrap().0.info().format.bits_per_sample();
         let bit_depth = match node.info().format {
             Property::Variable => {
                 panic!("Cannot output clips with variable format");
@@ -55,18 +51,8 @@ impl<'a> VapoursynthDecoder<'a> {
         // pub fn receive_frame(&mut self, x: &mut FrameRef) -> bool {
         let frame = self.node.get_frame(self.frame_idx);
 
-        // let ret;
-
-        // if let Ok(frame) = frame {
-        //     ret = true;
-        //     *x = frame;
-        // } else {
-        //     ret = false;
-        // }
-
         self.frame_idx += 1;
 
-        // ret
         frame
     }
 
