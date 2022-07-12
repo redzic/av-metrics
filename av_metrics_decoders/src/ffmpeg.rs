@@ -19,6 +19,7 @@ pub struct FfmpegDecoder<'a> {
     stream_index: usize,
     receiving_eof_frames: bool,
     receiving_frames: bool,
+    format: format::Pixel,
 }
 
 impl<'a> FfmpegDecoder<'a> {
@@ -65,6 +66,8 @@ impl<'a> FfmpegDecoder<'a> {
         decoder
             .set_parameters(input.parameters())
             .map_err(|e| e.to_string())?;
+
+        let format = decoder.format();
 
         let frame_rate = input.avg_frame_rate();
         Ok(Self {
@@ -116,16 +119,34 @@ impl<'a> FfmpegDecoder<'a> {
             stream_index,
             receiving_eof_frames: false,
             receiving_frames: false,
+            format,
         })
     }
 
     /// Get decoder pixel format
     pub fn get_decoder_format(&self) -> format::Pixel {
-        self.decoder.format()
+        self.format
+    }
+
+    pub unsafe fn get_initial_value() -> i32 {
+        0
+    }
+
+    pub fn receive_frame_initial<T: Pixel>(
+        &mut self,
+        alloc: &mut frame::Video,
+    ) -> Option<frame::Video> {
+        let mut frame_alloc = frame::Video::new(self.decoder.format(), stride, alloc_height);
+
+        if self.receive_frame::<T>(&mut frame_alloc) {
+            Some(frame_alloc)
+        } else {
+            None
+        }
     }
 
     /// Same as [`read_video_frame`] but does not create an additional allocation
-    pub fn receive_frame_with_alloc<T: Pixel>(&mut self, alloc: &mut frame::Video) -> bool {
+    pub fn receive_frame<T: Pixel>(&mut self, alloc: &mut frame::Video) -> bool {
         // Get packet until we find one that is the index we need
 
         // Only return false after packet_iter stops returning and after we've returned
@@ -151,7 +172,7 @@ impl<'a> FfmpegDecoder<'a> {
             }
 
             if let Some((stream, packet)) = self.packet_iter.next() {
-                // Skip indexes we don't care about
+                // Skip irrelevant indexes
                 if stream.index() != self.stream_index {
                     continue;
                 }
