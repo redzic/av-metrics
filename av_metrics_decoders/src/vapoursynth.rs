@@ -1,4 +1,7 @@
+use std::mem::MaybeUninit;
+
 use av_metrics::video::decode::VideoDetails;
+use vapoursynth::core::CoreRef;
 use vapoursynth::node::Node;
 
 use vapoursynth::prelude::*;
@@ -8,6 +11,7 @@ pub struct VapoursynthDecoder<'a> {
     frame_idx: usize,
     node: Node<'a>,
     video_details: VideoDetails,
+    pub core: CoreRef<'a>,
 }
 
 /// Vapoursynth error
@@ -56,10 +60,14 @@ impl<'a> VapoursynthDecoder<'a> {
             ..Default::default()
         };
 
+        // TODO error handling
+        let core = env.get_core().unwrap();
+
         Ok(Self {
             frame_idx: 0,
             node,
             video_details,
+            core,
         })
     }
 
@@ -67,7 +75,8 @@ impl<'a> VapoursynthDecoder<'a> {
         self.video_details.bit_depth
     }
 
-    pub fn receive_frame_initial<'b>(&'b mut self) -> Option<FrameRef<'a>> {
+    // TODO write the safety contracts
+    pub fn receive_frame_init<'b>(&'b mut self) -> Option<FrameRef<'a>> {
         let frame = self.node.get_frame(self.frame_idx);
 
         self.frame_idx += 1;
@@ -82,9 +91,9 @@ impl<'a> VapoursynthDecoder<'a> {
 
         if let Ok(frame) = frame {
             *x = frame;
-            return true;
+            true
         } else {
-            return false;
+            false
         }
     }
 

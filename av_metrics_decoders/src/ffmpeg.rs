@@ -132,19 +132,6 @@ impl<'a> FfmpegDecoder<'a> {
         0
     }
 
-    pub fn receive_frame_initial<T: Pixel>(
-        &mut self,
-        alloc: &mut frame::Video,
-    ) -> Option<frame::Video> {
-        let mut frame_alloc = frame::Video::new(self.decoder.format(), stride, alloc_height);
-
-        if self.receive_frame::<T>(&mut frame_alloc) {
-            Some(frame_alloc)
-        } else {
-            None
-        }
-    }
-
     /// Same as [`read_video_frame`] but does not create an additional allocation
     pub fn receive_frame<T: Pixel>(&mut self, alloc: &mut frame::Video) -> bool {
         // Get packet until we find one that is the index we need
