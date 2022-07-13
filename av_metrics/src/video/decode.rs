@@ -4,17 +4,34 @@
 use crate::video::pixel::Pixel;
 use crate::video::{ChromaSamplePosition, ChromaSampling};
 use std::cmp;
-use std::ops::Add;
+use std::mem::ManuallyDrop;
 use v_frame::frame::Frame;
 use v_frame::pixel::CastFromPrimitive;
 use v_frame::plane::Plane;
 
-pub trait FrameRef<T: Pixel> {
-    fn get_ptr() -> *const T;
-}
+pub trait Decoder2<InternalFrame> {
+    // TODO maybe change order of arguments
+    unsafe fn get_frame_ref<T: Pixel>(
+        frame: &InternalFrame,
+        height: usize,
+        width: usize,
+        stride: usize,
+        alloc_height: usize,
+    ) -> ManuallyDrop<Frame<T>>;
 
-pub trait Decoder2<T: Add> {
-    fn get() -> T;
+    fn receive_frame_init<T: Pixel>(
+        &mut self,
+        stride: usize,
+        alloc_height: usize,
+    ) -> Option<InternalFrame>;
+
+    fn receive_frame<T: Pixel>(&mut self, alloc: &mut InternalFrame) -> bool;
+
+    /// Get the Video Details
+    fn get_video_details(&self) -> VideoDetails;
+
+    /// Get the Bit Depth
+    fn get_bit_depth(&self) -> usize;
 }
 
 /// A trait for allowing metrics to decode generic video formats.

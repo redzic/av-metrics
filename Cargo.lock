@@ -899,7 +899,6 @@ checksum = "957e51f3646910546462e67d5f7599b9e4fb8acdd304b087a6494730f9eebf04"
 [[package]]
 name = "v_frame"
 version = "0.2.5"
-source = "git+https://github.com/redzic/rav1e?branch=zerocopy#a33302df248dfc47a5c9a42de49b4213ed7e4289"
 dependencies = [
  "cfg-if",
  "new_debug_unreachable",

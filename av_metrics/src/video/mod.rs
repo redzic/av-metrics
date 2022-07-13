@@ -13,7 +13,7 @@ use std::error::Error;
 
 pub use pixel::*;
 pub use v_frame::frame::Frame;
-pub use v_frame::plane::Plane;
+pub use v_frame::plane::{Plane, PlaneConfig, PlaneData};
 
 trait FrameCompare {
     fn can_compare(&self, other: &Self) -> Result<(), MetricsError>;

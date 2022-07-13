@@ -1,5 +1,6 @@
 extern crate ffmpeg_next as ffmpeg;
 
+use std::mem::ManuallyDrop;
 use std::path::Path;
 
 use ffmpeg::codec::decoder;
@@ -23,13 +24,12 @@ pub struct FfmpegDecoder<'a> {
 }
 
 impl<'a> FfmpegDecoder<'a> {
-    /// Gets context
+    /// Get decoding context used to initialize the decoder
     ///
     /// This step is needed separately to avoid lifetime issues
     /// regarding a field in a struct containing a reference to
     /// another field in the same struct.
     pub fn get_ctx(input: &Path) -> Result<format::context::Input, ffmpeg::Error> {
-        // TODO Fix error handling.
         format::input(&input)
     }
 
@@ -123,17 +123,12 @@ impl<'a> FfmpegDecoder<'a> {
         })
     }
 
-    /// Get decoder pixel format
-    pub fn get_decoder_format(&self) -> format::Pixel {
-        self.format
-    }
-
     pub fn receive_frame_init<T: Pixel>(
         &mut self,
-        stride: u32,
-        alloc_height: u32,
+        stride: usize,
+        alloc_height: usize,
     ) -> Option<frame::Video> {
-        let mut frame = frame::Video::new(self.format, stride, alloc_height);
+        let mut frame = frame::Video::new(self.format, stride as u32, alloc_height as u32);
 
         if self.receive_frame::<T>(&mut frame) {
             Some(frame)
@@ -183,6 +178,83 @@ impl<'a> FfmpegDecoder<'a> {
                 continue;
             }
         }
+    }
+}
+
+impl<'a> Decoder2<frame::Video> for FfmpegDecoder<'a> {
+    unsafe fn get_frame_ref<T: Pixel>(
+        frame: &frame::Video,
+        height: usize,
+        width: usize,
+        stride: usize,
+        alloc_height: usize,
+    ) -> ManuallyDrop<Frame<T>> {
+        let empty_plane = || Plane::<T> {
+            cfg: PlaneConfig {
+                alloc_height: 0,
+                height: 0,
+                stride: 0,
+                width: 0,
+                xdec: 0,
+                xorigin: 0,
+                xpad: 0,
+                ydec: 0,
+                yorigin: 0,
+                ypad: 0,
+            },
+            data: PlaneData::new_ref(&[]),
+        };
+
+        // TODO check is VS width is greater than stride
+        // like how is it actually working? tf
+        let plane_cfg_luma: PlaneConfig = PlaneConfig {
+            alloc_height,
+            height,
+            stride,
+            width,
+            xdec: 0,
+            xorigin: 0,
+            xpad: 0,
+            ydec: 0,
+            yorigin: 0,
+            ypad: 0,
+        };
+
+        ManuallyDrop::new(Frame::<T> {
+            planes: [
+                {
+                    Plane::<T> {
+                        cfg: plane_cfg_luma.clone(),
+                        data: PlaneData::new_ref(std::slice::from_raw_parts(
+                            frame.data(0).as_ptr().cast(),
+                            stride * height,
+                        )),
+                    }
+                },
+                empty_plane(),
+                empty_plane(),
+            ],
+        })
+    }
+
+    fn get_video_details(&self) -> VideoDetails {
+        self.video_details
+    }
+
+    fn receive_frame<T: Pixel>(&mut self, alloc: &mut frame::Video) -> bool {
+        self.receive_frame::<T>(alloc)
+    }
+
+    fn receive_frame_init<T: Pixel>(
+        &mut self,
+        stride: usize,
+        alloc_height: usize,
+    ) -> Option<frame::Video> {
+        self.receive_frame_init::<T>(stride, alloc_height)
+    }
+
+    fn get_bit_depth(&self) -> usize {
+        self.video_details.bit_depth
     }
 }
 
