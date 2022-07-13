@@ -128,8 +128,18 @@ impl<'a> FfmpegDecoder<'a> {
         self.format
     }
 
-    pub unsafe fn get_initial_value() -> i32 {
-        0
+    pub fn receive_frame_init<T: Pixel>(
+        &mut self,
+        stride: u32,
+        alloc_height: u32,
+    ) -> Option<frame::Video> {
+        let mut frame = frame::Video::new(self.format, stride, alloc_height);
+
+        if self.receive_frame::<T>(&mut frame) {
+            Some(frame)
+        } else {
+            None
+        }
     }
 
     /// Same as [`read_video_frame`] but does not create an additional allocation

@@ -1,5 +1,3 @@
-use std::mem::MaybeUninit;
-
 use av_metrics::video::decode::VideoDetails;
 use vapoursynth::core::CoreRef;
 use vapoursynth::node::Node;
