@@ -224,7 +224,7 @@ impl<'a> Decoder2<frame::Video> for FfmpegDecoder<'a> {
             planes: [
                 {
                     Plane::<T> {
-                        cfg: plane_cfg_luma.clone(),
+                        cfg: plane_cfg_luma,
                         data: PlaneData::new_ref(std::slice::from_raw_parts(
                             frame.data(0).as_ptr().cast(),
                             stride * height,
