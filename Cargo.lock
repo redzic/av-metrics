@@ -918,8 +918,9 @@ dependencies = [
 
 [[package]]
 name = "vapoursynth"
-version = "0.3.0"
-source = "git+https://github.com/YaLTeR/vapoursynth-rs?rev=074417335ff9c139956c62771835798c9a302e67#074417335ff9c139956c62771835798c9a302e67"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c7df702c65dec1cfa3b93f824a1e58d5b0fdb82ac8a722596f43d7214282f56"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -930,8 +931,9 @@ dependencies = [
 
 [[package]]
 name = "vapoursynth-sys"
-version = "0.3.0"
-source = "git+https://github.com/YaLTeR/vapoursynth-rs?rev=074417335ff9c139956c62771835798c9a302e67#074417335ff9c139956c62771835798c9a302e67"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fc59bbb7980ce21ece45bc5b3e316bf27ac164b7b1c273ce4846c29d0642a9c"
 dependencies = [
  "cfg-if",
 ]

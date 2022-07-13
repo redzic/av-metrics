@@ -19,8 +19,7 @@ ffmpeg-next = { version = "5.0.3", optional = true, default-features = false, fe
 y4m = { version = "0.7", optional = true }
 
 [dependencies.vapoursynth]
-git = "https://github.com/YaLTeR/vapoursynth-rs"
-rev = "074417335ff9c139956c62771835798c9a302e67"
+version = "0.4.0"
 features = ["vsscript-functions", "vapoursynth-functions"]
 
 [features]
