@@ -188,7 +188,8 @@ impl<'a> Decoder2<frame::Video> for FfmpegDecoder<'a> {
         width: usize,
         stride: usize,
         alloc_height: usize,
-    ) -> ManuallyDrop<Frame<T>> {
+        _strict: bool,
+    ) -> Frame2<T> {
         let empty_plane = || Plane::<T> {
             cfg: PlaneConfig {
                 alloc_height: 0,
@@ -205,8 +206,6 @@ impl<'a> Decoder2<frame::Video> for FfmpegDecoder<'a> {
             data: PlaneData::new_ref(&[]),
         };
 
-        // TODO check is VS width is greater than stride
-        // like how is it actually working? tf
         let plane_cfg_luma: PlaneConfig = PlaneConfig {
             alloc_height,
             height,
@@ -220,7 +219,8 @@ impl<'a> Decoder2<frame::Video> for FfmpegDecoder<'a> {
             ypad: 0,
         };
 
-        ManuallyDrop::new(Frame::<T> {
+        // Dimensions are always as requested
+        Frame2::Ref(ManuallyDrop::new(Frame::<T> {
             planes: [
                 {
                     Plane::<T> {
@@ -234,7 +234,7 @@ impl<'a> Decoder2<frame::Video> for FfmpegDecoder<'a> {
                 empty_plane(),
                 empty_plane(),
             ],
-        })
+        }))
     }
 
     fn get_video_details(&self) -> VideoDetails {

@@ -28,7 +28,7 @@ mod vapoursynth;
 ))]
 pub use crate::ffmpeg::FfmpegDecoder;
 
-pub use av_metrics::video::decode::{Decoder, Decoder2, VideoDetails};
+pub use av_metrics::video::decode::{Decoder, Decoder2, Frame2, VideoDetails};
 pub use av_metrics::video::{CastFromPrimitive, ChromaSampling, Frame, Pixel, Plane};
 
 pub use crate::vapoursynth::*;

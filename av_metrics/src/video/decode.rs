@@ -9,6 +9,13 @@ use v_frame::frame::Frame;
 use v_frame::pixel::CastFromPrimitive;
 use v_frame::plane::Plane;
 
+pub enum Frame2<T: Pixel> {
+    /// Don't call the destructor on this frame.
+    Ref(ManuallyDrop<Frame<T>>),
+    /// Owned frame.
+    Owned(Frame<T>),
+}
+
 pub trait Decoder2<InternalFrame> {
     // TODO maybe change order of arguments
     unsafe fn get_frame_ref<T: Pixel>(
@@ -17,7 +24,8 @@ pub trait Decoder2<InternalFrame> {
         width: usize,
         stride: usize,
         alloc_height: usize,
-    ) -> ManuallyDrop<Frame<T>>;
+        strict: bool,
+    ) -> Frame2<T>;
 
     fn receive_frame_init<T: Pixel>(
         &mut self,

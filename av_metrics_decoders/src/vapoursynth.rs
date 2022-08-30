@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use av_metrics::video::decode::{Decoder2, VideoDetails};
+use av_metrics::video::decode::{Decoder2, Frame2, VideoDetails};
 use av_metrics::video::{Frame, Pixel, Plane, PlaneConfig, PlaneData};
 use vapoursynth::core::CoreRef;
 use vapoursynth::node::Node;
@@ -112,7 +112,10 @@ impl<'a> Decoder2<FrameRef<'a>> for VapoursynthDecoder<'a> {
         width: usize,
         stride: usize,
         alloc_height: usize,
-    ) -> ManuallyDrop<Frame<T>> {
+        strict: bool,
+    ) -> Frame2<T> {
+        let stride_adjusted = stride * std::mem::size_of::<T>();
+
         let empty_plane = || Plane::<T> {
             cfg: PlaneConfig {
                 alloc_height: 0,
@@ -126,7 +129,8 @@ impl<'a> Decoder2<FrameRef<'a>> for VapoursynthDecoder<'a> {
                 yorigin: 0,
                 ypad: 0,
             },
-            data: PlaneData::new_ref(&[]),
+            // data: PlaneData::new_ref(&[]),
+            data: PlaneData::new(0),
         };
 
         let plane_cfg_luma: PlaneConfig = PlaneConfig {
@@ -142,21 +146,48 @@ impl<'a> Decoder2<FrameRef<'a>> for VapoursynthDecoder<'a> {
             ypad: 0,
         };
 
-        ManuallyDrop::new(Frame::<T> {
-            planes: [
-                {
-                    Plane::<T> {
-                        cfg: plane_cfg_luma,
-                        data: PlaneData::new_ref(std::slice::from_raw_parts(
-                            frame.data_ptr(0).cast(),
-                            stride * height,
-                        )),
-                    }
-                },
-                empty_plane(),
-                empty_plane(),
-            ],
-        })
+        // TODO check if it's OK to return the original plane if returned
+        // plane's stride is greater than requested, so just reconfigure
+        // the stride
+
+        if !strict || (frame.stride(0) == stride_adjusted && frame.height(0) >= alloc_height) {
+            Frame2::Ref(ManuallyDrop::new(Frame::<T> {
+                planes: [
+                    {
+                        Plane::<T> {
+                            cfg: plane_cfg_luma,
+                            data: PlaneData::new_ref(std::slice::from_raw_parts(
+                                frame.data_ptr(0).cast(),
+                                stride * height,
+                            )),
+                        }
+                    },
+                    empty_plane(),
+                    empty_plane(),
+                ],
+            }))
+        } else {
+            let mut f = Frame::<T> {
+                planes: [
+                    {
+                        Plane::<T> {
+                            cfg: plane_cfg_luma,
+                            data: PlaneData::new(stride * alloc_height),
+                        }
+                    },
+                    empty_plane(),
+                    empty_plane(),
+                ],
+            };
+
+            f.planes[0].copy_from_raw_u8(
+                std::slice::from_raw_parts(frame.data_ptr(0), frame.stride(0) * frame.height(0)),
+                frame.stride(0),
+                std::mem::size_of::<T>(),
+            );
+
+            Frame2::Owned(f)
+        }
     }
 
     fn receive_frame<T: Pixel>(&mut self, alloc: &mut FrameRef<'a>) -> bool {
